@@ -1,0 +1,17 @@
+\begin{table}[t]
+\centering
+\caption{E0b (Digit position): estimates by condition.}
+\label{tab:e0bcond}
+\small
+\begin{tabular}{lp{4.0cm}rrrrc}
+\toprule
+Digit position & & Blocks & Slope & Naive & Left-digit & 95\% CI \\
+\midrule
+flat & no boundary (214 to 215) & 414 & 1.11 & 5.40 & 7.48* & [4.23, 12.36] \\
+inner & tens digit changes (219 to 220) & 422 & 0.36 & -0.93 & -2.03 & [-7.44, 2.38] \\
+lead & leading digit changes (199 to 200) & 431 & 0.15 & -2.07 & -4.89 & [-10.74, 2.03] \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the within-block per-dollar demand response; naive is the uncorrected step-10 contrast; left-digit is step 10's residual from the placebo regression on destination roundness. $^{*}$ marks an interval excluding zero.}
+\end{table}

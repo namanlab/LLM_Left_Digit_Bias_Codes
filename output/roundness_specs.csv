@@ -1,0 +1,4 @@
+spec,est,lo,hi,sig
+Ordinal roundness score (reported),-3.25020976219763,-6.16841667377874,-0.653338269358787,*
+Measured corpus frequency of the destination,-3.52256070597202,-5.47023987139544,-1.6609314717794,*
+Largest placebo step (monotone bound),-3.47601643865688,-5.40389955135463,-2.40856123330507,*

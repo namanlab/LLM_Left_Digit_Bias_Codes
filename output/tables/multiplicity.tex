@@ -1,0 +1,26 @@
+\begin{table}[t]
+\centering
+\caption{Arm-level left-digit estimates with Benjamini--Hochberg correction.}
+\label{tab:mult}
+\small
+\begin{tabular}{lcrr}
+\toprule
+Arm & 95\% CI & $p$ & BH $p$ \\
+\midrule
+Dollar boundary type & [-3.65, 0.57] & 0.16 & 0.24 \\
+Digit position & [-2.77, 2.89] & 0.94 & 0.94 \\
+Core sweep & [-5.64, -0.99] & 0.01* & 0.03* \\
+Scaled prices & [-5.58, -1.85] & $<$\,.001* & 0.001* \\
+Newest models & [-38.70, 9.16] & 0.19 & 0.26 \\
+Prompt phrasing & [-11.04, -6.93] & $<$\,.001* & $<$\,.001* \\
+Non-price magnitudes & [-3.05, -0.93] & $<$\,.001* & $<$\,.001* \\
+Currency and locale & [-5.04, -0.15] & 0.03* & 0.05* \\
+Number formatting & [-3.42, 2.99] & 0.88 & 0.94 \\
+Rendered price tags & [-3.69, -0.39] & 0.03* & 0.05* \\
+Explicit reasoning & [-56.93, 38.27] & 0.75 & 0.89 \\
+Stated convention & [2.92, 9.38] & $<$\,.001* & $<$\,.001* \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize $p$-values are two-sided, computed from the bootstrap standard error under a normal approximation. The Benjamini--Hochberg (BH) correction is applied across the 12 arm-level tests. An asterisk marks $p < .05$.}
+\end{table}

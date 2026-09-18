@@ -1,0 +1,26 @@
+\begin{table}[t]
+\centering
+\caption{The left-digit estimate under each estimator choice.}
+\label{tab:robust}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+Arm & Blocks & Linear & Quadratic & Cubic & Eight $\rho{=}1$ & All blocks & Strict \\
+\midrule
+E0 & 1,736 & -1.53 & -1.57 & -1.56 & 0.18 & -0.94 & -2.06 \\
+E0b & 1,267 & 0.11 & 0.08 & 0.12 & 0.79 & 0.07 & 0.16 \\
+E1 & 1,160 & -3.25 & -3.27 & -3.10 & -2.46 & -2.10 & -3.71 \\
+E1b &    13 & -3.57 & -3.62 & -3.80 & -6.85 & -0.20 & -6.77 \\
+E1f &    48 & -15.54 & -15.64 & -15.03 & -0.78 & -6.22 & -15.54 \\
+E2 &   872 & -8.91 & -8.88 & -8.67 & -8.50 & -5.40 & -10.84 \\
+E3 & 4,006 & -2.01 & -2.08 & -1.88 & 3.58 & -1.12 & -2.69 \\
+E4 &   443 & -2.73 & -2.79 & -2.51 & 1.89 & -2.01 & -3.30 \\
+E6 &   340 & -0.26 & -0.33 & -0.10 & -4.80 & -0.19 & -0.14 \\
+E7 & 3,391 & -1.97 & -2.04 & -1.96 & 2.24 & -1.49 & -2.34 \\
+E8 &    20 & -7.68 & -7.63 & -8.01 & 4.72 & -5.11 & -10.44 \\
+E10 &   400 & 6.22 & 6.06 & 6.33 & 5.27 & 5.18 & 7.24 \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Linear is the reported specification. Quadratic and cubic replace the within-block linear detrend with a polynomial of that degree. Eight $\rho{=}1$ drops the roundness extrapolation entirely and compares step 10 against the eight placebos landing on a plain multiple of ten. That leaves $.00$'s extra roundness credited to the threshold, so it is the conservative direction: it understates the effect wherever the roundness correction matters, and the gap between the two columns is how much work the correction is doing. All blocks sets the minimum within-block range to zero, Strict to five percentage points.}
+\end{table}

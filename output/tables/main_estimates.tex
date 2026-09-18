@@ -1,0 +1,26 @@
+\begin{table}[t]
+\centering
+\caption{Left-digit effect by experiment, in percentage points of $P(\text{buy})$.}
+\label{tab:main}
+\small
+\begin{tabular}{@{}llrrrrcr@{}}
+\toprule
+Experiment & Code & Blocks & Slope & Uncorrected & Left-digit & 95\% CI & $\theta$ \\
+\midrule
+Dollar boundary type & E0 & 1,736 & -1.11 & 0.09 & -1.53 & [-3.65, 0.57] & 1.37 \\
+Digit position & E0b & 1,267 & 0.53 & 0.75 & 0.11 & [-2.77, 2.89] & n/a \\
+Core sweep & E1 & 1,160 & -4.28 & -2.50 & -3.25* & [-5.64, -0.99] & 0.76 \\
+Scaled prices & E1b &    13 & 1.75 & -6.67 & -3.57* & [-5.58, -1.85] & n/a \\
+Newest models & E1f &    48 & -22.44 & -1.60 & -15.54 & [-38.70, 9.16] & 0.69 \\
+Prompt phrasing & E2 &   872 & -3.15 & -8.52 & -8.91* & [-11.04, -6.93] & 2.83 \\
+Non-price magnitudes & E3 & 4,006 & -3.42 & 3.27 & -2.01* & [-3.05, -0.93] & 0.59 \\
+Currency and locale & E4 &   443 & -4.67 & 1.63 & -2.73* & [-5.04, -0.15] & 0.58 \\
+Number formatting & E6 &   340 & -5.06 & -4.55 & -0.26 & [-3.42, 2.99] & 0.05 \\
+Rendered price tags & E7 & 3,391 & -4.73 & 2.01 & -1.97* & [-3.69, -0.39] & 0.42 \\
+Explicit reasoning & E8 &    20 & -4.48 & 4.03 & -7.68 & [-56.93, 38.27] & 1.71 \\
+Stated convention & E10 &   400 & -0.86 & 5.33 & 6.22* & [2.92, 9.38] & n/a \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Slope is the within-block per-dollar demand response. Uncorrected is the step-10 jump minus the mean of the nine placebo steps. It is confounded by the roundness of $.00$ and takes the opposite sign to the corrected estimate in four of the ten experiments. Left-digit is step 10's residual from the placebo regression on destination roundness, and is the estimate to read. Intervals are block bootstraps over 400 resamples; $^{*}$ marks intervals excluding zero. $\theta$ is the left-digit effect as a share of the per-dollar decline, the inattention parameter of the human literature (Lyft $\approx 0.5$, used cars $0.30$, scanner data $0.15$--$0.25$). It is a ratio and is blank where the denominator is within 1 pp of zero; a value above one means the boundary drop exceeds the entire smooth within-dollar decline and should be read as all of it, not as a share.}
+\end{table}

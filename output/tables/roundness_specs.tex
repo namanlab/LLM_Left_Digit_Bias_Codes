@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{The core estimate under three adjustments for destination roundness.}
+\label{tab:specs}
+\small
+\begin{tabular}{lrc}
+\toprule
+Adjustment for destination roundness & Estimate & 95\% CI \\
+\midrule
+Ordinal roundness score (reported) & -3.25* & [-6.17, -0.65] \\
+Measured corpus frequency of the destination & -3.52* & [-5.47, -1.66] \\
+Largest placebo step (monotone bound) & -3.48* & [-5.40, -2.41] \\
+Matched design, no roundness model (E0) & -6.14* & [-8.36, -3.86] \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Row 1 is the reported estimator, which regresses the nine placebo jumps on an ordinal roundness score and extrapolates to a whole dollar. Row 2 replaces that score with the measured frequency of the destination ending in three public corpora, giving nine distinct values instead of two levels. Row 3 assumes only that rounder destinations are weakly more attractive: since $.00$ is the roundest destination on the grid, the dollar step should jump at least as much as the largest placebo, so the difference between them bounds the effect without any functional form. Row 4 uses no roundness model at all: it compares two step-10 jumps that both end on $.00$ and differ only in what happens to the dollar figure, and it is estimated on E0's own data. The first three rows are estimated on the core sweep.}
+\end{table}

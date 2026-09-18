@@ -1,0 +1,23 @@
+\begin{table}[t]
+\centering
+\caption{The E0b contrasts within each model.}
+\label{tab:matchede0bmodel}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & Blocks & Flat & Inner & Lead & Roundness & Lead excess \\
+\midrule
+gpt-4o-mini &  75 & 5.64 & 16.37 & 16.88 & 10.73 & -10.21 \\
+mistral-small-3.2-24b-instruct & 173 & 5.07 & 7.85 & 9.65 & 2.78 & -0.98 \\
+deepseek-chat-v3-0324 & 148 & 6.73 & 4.12 & 2.34 & -2.62 & 0.84 \\
+qwen3.5-9b & 195 & 0.75 & -1.06 & 0.89 & -1.81 & 3.75 \\
+qwen3-235b-a22b-2507 & 104 & 3.42 & -8.35 & -15.70 & -11.77 & 4.42 \\
+qwen3-30b-a3b-instruct-2507 &  55 & -3.12 & -1.80 & 4.95 & 1.32 & 5.44 \\
+qwen3.7-flash & 211 & 4.70 & -0.55 & -0.27 & -5.25 & 5.52 \\
+deepseek-v4-flash & 157 & 4.99 & -1.60 & 2.50 & -6.59 & 10.70 \\
+gpt-oss-20b & 149 & 12.71 & -17.98 & -28.77 & -30.68 & 19.88 \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Roundness is inner minus flat; lead excess is lead minus the linear extrapolation from flat and inner.}
+\end{table}

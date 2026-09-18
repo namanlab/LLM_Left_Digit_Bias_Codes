@@ -1,0 +1,24 @@
+\begin{table}[t]
+\centering
+\caption{The ten one-cent steps, core sweep (E1).}
+\label{tab:steps}
+\small
+\begin{tabular}{rlccrrr}
+\toprule
+Step & Prices & Crosses \$ & Roundness & Jump & Roundness fit & Residual \\
+\midrule
+1 & .09 $\to$ .10 & no & 1 & 0.14 & 0.52 & -0.38 \\
+2 & .19 $\to$ .20 & no & 1 & 1.06 & 0.52 & 0.53 \\
+3 & .29 $\to$ .30 & no & 1 & 0.18 & 0.52 & -0.34 \\
+4 & .39 $\to$ .40 & no & 1 & 1.54 & 0.52 & 1.02 \\
+5 & .49 $\to$ .50 & no & 2 & 0.92 & 0.92 & 0.00 \\
+6 & .59 $\to$ .60 & no & 1 & 1.16 & 0.52 & 0.63 \\
+7 & .69 $\to$ .70 & no & 1 & -1.30 & 0.52 & -1.82 \\
+8 & .79 $\to$ .80 & no & 1 & 0.42 & 0.52 & -0.10 \\
+9 & .89 $\to$ .90 & no & 1 & 0.99 & 0.52 & 0.46 \\
+\addlinespace 10 & .99 $\to$ +1.00 & yes & 3 & -1.93 & 1.32 & -3.25 \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Roundness codes the destination ending: 3 for $.00$, 2 for $.50$, 1 for any other multiple of ten, 0 otherwise. The fit is estimated on the nine placebo steps only; step 10's residual from it is the left-digit estimate.}
+\end{table}

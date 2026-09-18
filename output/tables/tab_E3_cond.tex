@@ -1,0 +1,19 @@
+\begin{table}[t]
+\centering
+\caption{E3 (Non-price magnitudes): estimates by condition.}
+\label{tab:e3cond}
+\small
+\begin{tabular}{lp{4.0cm}rrrrc}
+\toprule
+Domain & & Blocks & Slope & Naive & Left-digit & 95\% CI \\
+\midrule
+calories & calories per portion & 893 & -4.20 & 5.52 & 2.84* & [1.20, 4.43] \\
+delivery\_days & delivery, days & 623 & -4.64 & 9.67 & 6.18* & [4.22, 8.69] \\
+odometer & odometer, miles & 731 & -2.93 & -4.19 & -4.97* & [-6.52, -3.21] \\
+rating & rating out of 10 & 786 & 1.31 & -0.47 & -9.73* & [-13.16, -6.72] \\
+weight & pack weight, kg & 973 & -6.12 & 5.73 & -3.26* & [-5.49, -1.61] \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the within-block per-dollar demand response; naive is the uncorrected step-10 contrast; left-digit is step 10's residual from the placebo regression on destination roundness. $^{*}$ marks an interval excluding zero.}
+\end{table}

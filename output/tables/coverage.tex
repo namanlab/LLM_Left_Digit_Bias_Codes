@@ -1,0 +1,29 @@
+\begin{table}[t]
+\centering
+\caption{Data collected.}
+\label{tab:coverage}
+\small
+\begin{tabular}{llrrr}
+\toprule
+Experiment & Code & Models & Cells & Calls \\
+\midrule
+Dollar boundary type & E0 & 9 &  93,555 &  93,555 \\
+Digit position & E0b & 9 &  64,152 &  64,152 \\
+Core sweep & E1 & 15 &  55,800 & 260,400 \\
+Stated convention & E10 & 5 &  15,840 &  15,840 \\
+Scaled prices & E1b & 5 &   7,440 &   7,440 \\
+Newest models & E1f & 5 &   3,720 &  44,640 \\
+Prompt phrasing & E2 & 5 &  44,640 &  44,640 \\
+Non-price magnitudes & E3 & 5 & 223,200 & 223,200 \\
+Currency and locale & E4 & 5 &  18,600 &  18,600 \\
+Number formatting & E6 & 4 &  14,880 &  14,880 \\
+Rendered price tags & E7 & 4 & 138,942 & 138,942 \\
+Explicit reasoning & E8 & 5 &     930 &   2,976 \\
+Arithmetic probes & E9 & 15 &   1,860 &   8,680 \\
+\midrule
+\multicolumn{2}{l}{Total} & & 683,559 & 937,945 \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize A cell is one condition at one price, averaging the repeated draws that a sampled read-out needs. Calls is the number of API requests behind those cells.}
+\end{table}

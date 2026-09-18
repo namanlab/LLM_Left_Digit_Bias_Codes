@@ -1,0 +1,17 @@
+\begin{table}[t]
+\centering
+\caption{E0 (Dollar boundary type): estimates by condition.}
+\label{tab:e0cond}
+\small
+\begin{tabular}{lp{4.0cm}rrrrc}
+\toprule
+Dollar figure & & Blocks & Slope & Naive & Left-digit & 95\% CI \\
+\midrule
+roll & leftmost digit changes (19 to 20) & 794 & -1.65 & -3.19 & -5.08* & [-8.46, -1.59] \\
+same & dollar figure increments (12 to 13) & 840 & -0.62 & 3.25 & 1.92 & [-0.91, 4.55] \\
+widen & a digit is added (99 to 100) & 102 & -1.04 & -0.40 & -2.37 & [-7.34, 2.56] \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the within-block per-dollar demand response; naive is the uncorrected step-10 contrast; left-digit is step 10's residual from the placebo regression on destination roundness. $^{*}$ marks an interval excluding zero.}
+\end{table}

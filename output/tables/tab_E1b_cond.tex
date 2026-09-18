@@ -1,0 +1,16 @@
+\begin{table}[t]
+\centering
+\caption{E1b (Scaled prices): estimates by condition.}
+\label{tab:e1bcond}
+\small
+\begin{tabular}{lp{4.0cm}rrrrc}
+\toprule
+Scale & & Blocks & Slope & Naive & Left-digit & 95\% CI \\
+\midrule
+10 & prices x10 &  1 & 0.22 & -1.25 & -2.82* & [-2.82, -2.82] \\
+100 & prices x100 & 12 & 1.88 & -7.12 & -3.64* & [-5.95, -1.95] \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the within-block per-dollar demand response; naive is the uncorrected step-10 contrast; left-digit is step 10's residual from the placebo regression on destination roundness. $^{*}$ marks an interval excluding zero.}
+\end{table}

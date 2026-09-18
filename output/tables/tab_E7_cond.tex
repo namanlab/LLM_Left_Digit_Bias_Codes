@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\caption{E7 (Rendered price tags): estimates by condition.}
+\label{tab:e7cond}
+\small
+\begin{tabular}{lp{4.0cm}rrrrc}
+\toprule
+Tag & & Blocks & Slope & Naive & Left-digit & 95\% CI \\
+\midrule
+r35 & cents 35\% & 686 & -5.77 & 1.27 & -3.66 & [-7.29, 0.83] \\
+r50 & cents 50\% & 679 & -5.68 & 2.95 & -1.81 & [-6.06, 1.94] \\
+r70 & cents 70\% & 667 & -3.72 & 3.21 & -0.36 & [-4.48, 3.97] \\
+same & cents 100\% & 667 & -5.33 & 3.22 & 0.16 & [-3.98, 4.68] \\
+sup & superscript &  55 & -4.14 & 0.24 & -18.66 & [-41.68, 0.73] \\
+textonly & text only & 637 & -3.08 & -0.56 & -2.79* & [-4.23, -1.26] \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the within-block per-dollar demand response; naive is the uncorrected step-10 contrast; left-digit is step 10's residual from the placebo regression on destination roundness. $^{*}$ marks an interval excluding zero.}
+\end{table}
