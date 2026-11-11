@@ -5,7 +5,7 @@
 \small
 \begin{tabular}{lllrrrc}
 \toprule
-Model & Tier & Readout & Blocks & Slope & Left-digit & 95\% CI \\
+Model & Tier & Measure & Blocks & Slope & Left-digit & 95\% CI \\
 \midrule
 qwen3-235b-a22b-2507 & high & logprob &  83 & 0.76 & -3.37 & [-9.14, 3.90] \\
 gpt-4o & high & logprob &  65 & -4.88 & -0.51 & [-6.27, 6.81] \\
@@ -25,5 +25,5 @@ qwen3-30b-a3b-instruct-2507 & mid & logprob &  58 & -2.97 & 6.86 & [-1.12, 15.32
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\parbox{\linewidth}{\footnotesize Readout is first-token log-probabilities where the provider exposes them and the mean of 12 sampled binary answers otherwise.}
+\parbox{\linewidth}{\footnotesize Tier is the capability tier of the model. Measure is how purchase probability is obtained: first-token log-probabilities where the provider exposes them, and the mean of 12 sampled yes-or-no answers otherwise.}
 \end{table}

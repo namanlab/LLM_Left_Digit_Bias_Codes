@@ -5,7 +5,7 @@
 \small
 \begin{tabular}{lrrrrrr}
 \toprule
-Model & Blocks & Flat & Inner & Lead & Roundness & Lead excess \\
+Model & Blocks & Flat & Inner & Lead & Inner $-$ flat & Lead excess \\
 \midrule
 gpt-4o-mini &  75 & 5.64 & 16.37 & 16.88 & 10.73 & -10.21 \\
 mistral-small-3.2-24b-instruct & 173 & 5.07 & 7.85 & 9.65 & 2.78 & -0.98 \\
@@ -19,5 +19,5 @@ gpt-oss-20b & 149 & 12.71 & -17.98 & -28.77 & -30.68 & 19.88 \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\parbox{\linewidth}{\footnotesize Roundness is inner minus flat; lead excess is lead minus the linear extrapolation from flat and inner.}
+\parbox{\linewidth}{\footnotesize Flat, inner, and lead are step-10 jumps; lead excess is lead minus the linear extrapolation from flat and inner.}
 \end{table}

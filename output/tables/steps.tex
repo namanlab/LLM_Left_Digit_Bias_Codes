@@ -20,5 +20,5 @@ Step & Prices & Crosses \$ & Roundness & Jump & Roundness fit & Residual \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\parbox{\linewidth}{\footnotesize Roundness codes the destination ending: 3 for $.00$, 2 for $.50$, 1 for any other multiple of ten, 0 otherwise. The fit is estimated on the nine placebo steps only; step 10's residual from it is the left-digit estimate.}
+\parbox{\linewidth}{\footnotesize Roundness codes the destination ending: 3 for $.00$, 2 for $.50$, 1 for any other multiple of ten, 0 otherwise. Every step ends on a multiple of ten, so no step has roundness 0. The fit is estimated on the nine placebo steps only; step 10's residual from it is the roundness-corrected estimate.}
 \end{table}

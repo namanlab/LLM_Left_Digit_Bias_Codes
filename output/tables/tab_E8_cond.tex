@@ -3,14 +3,14 @@
 \caption{E8 (Explicit reasoning): estimates by condition.}
 \label{tab:e8cond}
 \small
-\begin{tabular}{lp{4.0cm}rrrrc}
+\begin{tabular}{lp{3.0cm}rrrrc}
 \toprule
-Instruction & & Blocks & Slope & Naive & Left-digit & 95\% CI \\
+Instruction & & Blocks & Slope & Uncorrected & Left-digit & 95\% CI \\
 \midrule
 high & think step by step & 10 & -8.05 & -9.12 & -30.38 & [-103.21, 9.28] \\
 low & answer immediately & 10 & -0.90 & 17.18 & 15.03 & [-30.57, 89.41] \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the within-block per-dollar demand response; naive is the uncorrected step-10 contrast; left-digit is step 10's residual from the placebo regression on destination roundness. $^{*}$ marks an interval excluding zero.}
+\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the change in purchase probability per dollar of price within a block. Uncorrected is the step-10 jump minus the mean of the nine placebo jumps. Left-digit is the roundness-corrected estimate (Section~\ref{sec:confound}). Intervals are block bootstraps over 133 resamples; $^{*}$ marks an interval excluding zero.}
 \end{table}

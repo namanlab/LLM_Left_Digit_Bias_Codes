@@ -5,7 +5,7 @@
 \small
 \begin{tabular}{lrrrrc}
 \toprule
-Template & Blocks & Slope & Naive & Left-digit & 95\% CI \\
+Template & Blocks & Slope & Uncorrected & Left-digit & 95\% CI \\
 \midrule
 T01 & 75 & -4.81 & -6.37 & -5.01* & [-9.79, -0.62] \\
 T02 & 79 & -3.61 & -9.33 & -10.33* & [-16.75, -4.48] \\
@@ -22,5 +22,5 @@ T12 & 74 & -3.46 & -12.97 & -13.55* & [-20.15, -7.82] \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the within-block per-dollar demand response; naive is the uncorrected step-10 contrast; left-digit is step 10's residual from the placebo regression on destination roundness. $^{*}$ marks an interval excluding zero.}
+\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the change in purchase probability per dollar of price within a block. Uncorrected is the step-10 jump minus the mean of the nine placebo jumps. Left-digit is the roundness-corrected estimate (Section~\ref{sec:confound}). Intervals are block bootstraps over 133 resamples; $^{*}$ marks an interval excluding zero.}
 \end{table}

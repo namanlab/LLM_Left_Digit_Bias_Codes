@@ -1,6 +1,6 @@
 \begin{table}[t]
 \centering
-\caption{The cents-size gradient in E7, by model.}
+\caption{Trend in the left-digit estimate as the cents shrink (E7), by model.}
 \label{tab:vistrend}
 \small
 \begin{tabular}{lrrcr}
@@ -14,5 +14,5 @@ qwen3.7-flash & 1,079 & -2.74 & [-18.02, 11.90] & 0.415 \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\parbox{\linewidth}{\footnotesize Trend is the slope of the left-digit estimate on the height of the cents relative to the dollar digits, in percentage points per unit of height. A positive value means the effect gets more negative as the cents shrink, which is what a perceptual account predicts. The last column is the share of bootstrap draws above zero. Models contributing fewer than 100 blocks are excluded.}
+\parbox{\linewidth}{\footnotesize Trend is the slope of a line fitted to the four left-digit estimates against the height of the cents relative to the dollar digits (1.00, 0.70, 0.50, 0.35), in percentage points per unit of height. A positive value means the effect gets more negative as the cents shrink, which is what a perceptual account predicts; it does not imply that the four estimates are monotone. The last column is the share of 200 bootstrap draws above zero. Models contributing fewer than 100 blocks are excluded.}
 \end{table}

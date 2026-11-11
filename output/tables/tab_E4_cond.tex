@@ -3,9 +3,9 @@
 \caption{E4 (Currency and locale): estimates by condition.}
 \label{tab:e4cond}
 \small
-\begin{tabular}{lp{4.0cm}rrrrc}
+\begin{tabular}{lp{3.0cm}rrrrc}
 \toprule
-Currency & & Blocks & Slope & Naive & Left-digit & 95\% CI \\
+Currency & & Blocks & Slope & Uncorrected & Left-digit & 95\% CI \\
 \midrule
 CHF & Swiss franc & 98 & -6.23 & -3.43 & -4.59 & [-9.06, 0.26] \\
 EUR & euro & 82 & -4.12 & -3.20 & -4.04 & [-9.10, 1.27] \\
@@ -15,5 +15,5 @@ USD & US dollar & 92 & -5.07 & -5.03 & -5.28* & [-10.57, -0.05] \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the within-block per-dollar demand response; naive is the uncorrected step-10 contrast; left-digit is step 10's residual from the placebo regression on destination roundness. $^{*}$ marks an interval excluding zero.}
+\parbox{\linewidth}{\footnotesize Each condition is estimated on its own blocks. Slope is the change in purchase probability per dollar of price within a block. Uncorrected is the step-10 jump minus the mean of the nine placebo jumps. Left-digit is the roundness-corrected estimate (Section~\ref{sec:confound}). Intervals are block bootstraps over 133 resamples; $^{*}$ marks an interval excluding zero.}
 \end{table}

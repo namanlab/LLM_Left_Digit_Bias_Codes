@@ -8,7 +8,9 @@
 #         output/tables/numbers.tex  \newcommand macros for the paper
 #         output/estimates.csv     every estimate in one tidy file
 #
-#  Usage:  Rscript analysis/analyse.R  [--boot N]
+#  Usage:  Rscript analysis/analyse.R  [--boot N] [--out=DIR] [--copyto=DIR1,DIR2]
+#          --out     output folder relative to the project root (default: output)
+#          --copyto  folders that receive figures/ and tables/ (default: paper, plan)
 # =============================================================================
 
 suppressPackageStartupMessages({library(data.table); library(ggplot2)})
@@ -16,13 +18,20 @@ suppressPackageStartupMessages({library(data.table); library(ggplot2)})
 args   <- commandArgs(trailingOnly = TRUE)
 N_BOOT <- if (any(grepl("^--boot", args))) as.integer(sub("--boot=?", "", args[grep("^--boot", args)])) else 400
 if (is.na(N_BOOT)) N_BOOT <- 400
+arg_val <- function(flag, default) {
+  hit <- grep(paste0("^--", flag, "="), args, value = TRUE)
+  if (length(hit)) sub(paste0("^--", flag, "="), "", hit[1]) else default
+}
+OUT_DIR <- arg_val("out", "output")
+COPY_TO <- strsplit(arg_val("copyto", "paper,plan"), ",", fixed = TRUE)[[1]]
 
 ROOT <- normalizePath(file.path(dirname(sub("^--file=", "",
           grep("^--file=", commandArgs(FALSE), value = TRUE)[1])), ".."), mustWork = FALSE)
 if (is.na(ROOT) || !dir.exists(file.path(ROOT, "data"))) ROOT <- getwd()
 PAN <- file.path(ROOT, "data", "panels")
-FIG <- file.path(ROOT, "output", "figures"); dir.create(FIG, showWarnings = FALSE, recursive = TRUE)
-TAB <- file.path(ROOT, "output", "tables");  dir.create(TAB, showWarnings = FALSE, recursive = TRUE)
+OUT <- file.path(ROOT, OUT_DIR); dir.create(OUT, showWarnings = FALSE, recursive = TRUE)
+FIG <- file.path(OUT, "figures"); dir.create(FIG, showWarnings = FALSE, recursive = TRUE)
+TAB <- file.path(OUT, "tables");  dir.create(TAB, showWarnings = FALSE, recursive = TRUE)
 
 MIN_RANGE <- 0.01   # a block must move by at least this much to carry information
 set.seed(20260906)
@@ -128,19 +137,23 @@ MIN_SLOPE <- 1.0
 
 theta_of <- function(ld, slope) if (is.na(ld) || slope > -MIN_SLOPE) NA_real_ else ld / slope
 
-estimate <- function(d, boot = N_BOOT) {
+# keep_draws = TRUE attaches the resampled block sets as attribute "draws", so another
+# statistic can be bootstrapped on exactly the same resamples.
+estimate <- function(d, boot = N_BOOT, keep_draws = FALSE) {
   if (!nrow(d)) return(NULL)
   ep <- ending_profile(d); ld <- left_digit(ep$eff)
   blocks <- unique(d$blk); idx <- split(seq_len(nrow(d)), d$blk)
+  draws <- if (keep_draws) vector("list", boot) else NULL
   bs <- vapply(seq_len(boot), function(i) {
     pick <- sample(blocks, length(blocks), TRUE)
+    if (keep_draws) draws[[i]] <<- pick
     e <- ending_profile(d[unlist(idx[pick], use.names = FALSE)])
     c(left_digit(e$eff)[1], e$slope)
   }, numeric(2))
   ok <- is.finite(bs[1, ]); b1 <- bs[1, ok]
   th <- vapply(which(ok), function(j) theta_of(bs[1, j], bs[2, j]), numeric(1))
   th <- th[is.finite(th)]
-  data.table(blocks = ep$blocks, cells = nrow(d), slope = ep$slope,
+  out <- data.table(blocks = ep$blocks, cells = nrow(d), slope = ep$slope,
              naive = ld[2], left_digit = ld[1],
              se = if (length(b1) > 2) sd(b1) else NA_real_,
              lo = if (length(b1) > 2) quantile(b1, .025) else NA_real_,
@@ -152,6 +165,8 @@ estimate <- function(d, boot = N_BOOT) {
                           quantile(th, .025) else NA_real_,
              theta_hi = if (length(th) > 2 && !is.na(theta_of(ld[1], ep$slope)))
                           quantile(th, .975) else NA_real_)
+  if (keep_draws) setattr(out, "draws", draws)
+  out
 }
 
 star <- function(lo, hi) fifelse(!is.na(lo) & (hi < 0 | lo > 0), "*", "")
@@ -177,13 +192,13 @@ BY <- list(E0 = "boundary", E0b = "digit_cond",
 BY <- lapply(BY, function(v) v[v %in% names(D)])
 # Readable names. Tables are read by people who do not know the internal arm codes, so
 # the name is the primary column and the code is secondary.
-LABEL <- c(E0  = "Dollar boundary type",
+LABEL <- c(E0  = "Matched design",
            E0b = "Digit position",
            E1  = "Core sweep",
            E1b = "Scaled prices",
            E1f = "Newest models",
            E2  = "Prompt phrasing",
-           E3  = "Non-price magnitudes",
+           E3  = "Non-price quantities",
            E4  = "Currency and locale",
            E6  = "Number formatting",
            E7  = "Rendered price tags",
@@ -205,11 +220,12 @@ for (a in names(BY0 <- list(E0 = "boundary", E0b = "digit_cond",
                  a, k))
 }
 
-RES <- list(); COND <- list(); MOD <- list()
+RES <- list(); COND <- list(); MOD <- list(); E1_DRAWS <- NULL
 for (arm in intersect(names(BY), unique(D$experiment))) {
   d <- prep(D[experiment == arm], by = BY[[arm]])
   if (!nrow(d)) next
-  r <- estimate(d); if (is.null(r)) next
+  r <- estimate(d, keep_draws = arm == "E1"); if (is.null(r)) next
+  if (arm == "E1") E1_DRAWS <- attr(r, "draws")
   RES[[arm]] <- cbind(data.table(arm = arm, label = LABEL[[arm]]), r)
 
   # by condition, where the arm has one
@@ -260,11 +276,14 @@ if ("E9" %in% D$experiment) {
 #     (i)  Replace the assumed score with a measured one: how often the destination
 #          ending actually occurs in the corpora counted for E5. That gives nine
 #          distinct values among the placebos instead of two levels.
-#     (ii) Drop the functional form entirely. Any roundness account in which rounder
-#          destinations are weakly more attractive implies the dollar step should jump
-#          at least as much as every placebo, because .00 is the roundest destination
-#          on the grid. Step 10 minus the largest placebo jump is therefore a bound on
-#          the effect that assumes only monotonicity.
+#     (ii) Drop the functional form entirely. If a whole-dollar destination is at least
+#          as attractive as every within-dollar destination, the roundness part of
+#          step 10 is at least the roundness part of every placebo, and so at least
+#          their mean. Step 10 minus the MEAN placebo jump (the uncorrected contrast)
+#          therefore has an expectation at or above the left-digit effect: it can only
+#          understate a negative effect. Step 10 minus the LARGEST placebo jump is also
+#          reported, but the largest of nine noisy jumps sits above its own expectation,
+#          so that contrast tends to overstate the effect and is not a bound.
 # -----------------------------------------------------------------------------
 steps_full <- function(eff) {
   st <- decade_steps(eff)
@@ -281,36 +300,44 @@ ld_measured <- function(eff) {          # (i) measured typicality of the destina
   pl <- st[step < 10]
   st[step == 10, jump] - as.numeric(predict(lm(jump ~ lshare, pl), st[step == 10]))
 }
-ld_bound <- function(eff) {             # (ii) monotone bound, no functional form
+ld_maxplacebo <- function(eff) {        # step 10 minus the largest placebo jump
   st <- decade_steps(eff)
   if (nrow(st) < 10) return(NA_real_)
   st[step == 10, jump] - max(st[step < 10]$jump)
 }
 
+# All E1 rows are bootstrapped on the resamples drawn for the main E1 estimate, so the
+# ordinal row here and the E1 interval in every other table are the same numbers.
 ALT <- NULL
-if ("E1" %in% D$experiment) {
+if ("E1" %in% D$experiment && !is.null(E1_DRAWS)) {
   d1a <- prep(D[experiment == "E1"])
   if (nrow(d1a)) {
     ep <- ending_profile(d1a)
     blocks <- unique(d1a$blk); idx <- split(seq_len(nrow(d1a)), d1a$blk)
-    bs <- replicate(N_BOOT, {
-      e <- ending_profile(d1a[unlist(idx[sample(blocks, length(blocks), TRUE)],
-                                     use.names = FALSE)])$eff
-      c(left_digit(e)[1], ld_measured(e), ld_bound(e))
-    })
+    bs <- vapply(E1_DRAWS, function(pick) {
+      e <- ending_profile(d1a[unlist(idx[pick], use.names = FALSE)])$eff
+      ld <- left_digit(e)
+      c(ld[2], ld[1], ld_measured(e), ld_maxplacebo(e))
+    }, numeric(4))
+    # Advance the random-number stream by the draws an independent bootstrap here would
+    # make, so the intervals of every later section are unaffected by the reuse above.
+    invisible(replicate(N_BOOT, sample(blocks, length(blocks), TRUE)))
     qs <- function(i) { v <- bs[i, ]; v <- v[is.finite(v)]
       if (length(v) > 2) quantile(v, c(.025, .975)) else c(NA_real_, NA_real_) }
+    ld0 <- left_digit(ep$eff)
     ALT <- data.table(
-      spec = c("Ordinal roundness score (reported)",
+      id   = c("SpecNaive", "SpecOrdinal", "SpecMeasured", "SpecMaxPlacebo"),
+      spec = c("None: step 10 minus the mean placebo step",
+               "Ordinal roundness score",
                "Measured corpus frequency of the destination",
-               "Largest placebo step (monotone bound)"),
-      est  = c(left_digit(ep$eff)[1], ld_measured(ep$eff), ld_bound(ep$eff)),
-      lo   = c(qs(1)[1], qs(2)[1], qs(3)[1]),
-      hi   = c(qs(1)[2], qs(2)[2], qs(3)[2]))
+               "None: step 10 minus the largest placebo step"),
+      est  = c(ld0[2], ld0[1], ld_measured(ep$eff), ld_maxplacebo(ep$eff)),
+      lo   = vapply(1:4, function(i) qs(i)[1], numeric(1)),
+      hi   = vapply(1:4, function(i) qs(i)[2], numeric(1)))
     ALT[, sig := star(lo, hi)]
     cat("\nspecification of the roundness adjustment (E1):\n")
     print(ALT[, .(spec, est = round(est, 2), lo = round(lo, 2), hi = round(hi, 2), sig)])
-    fwrite(ALT, file.path(ROOT, "output", "roundness_specs.csv"))
+    fwrite(ALT, file.path(OUT,"roundness_specs.csv"))
   }
 }
 
@@ -357,7 +384,7 @@ if ("E0" %in% D$experiment) {
     print(MATCH[, .(boundary, blocks, jump = round(jump, 2),
                     vs_same = round(vs_same, 2), lo = round(lo, 2),
                     hi = round(hi, 2), sig)])
-    fwrite(MATCH, file.path(ROOT, "output", "matched.csv"))
+    fwrite(MATCH, file.path(OUT,"matched.csv"))
 
     # the same contrast within each model, as a check that it is not one model
     MATCHM <- rbindlist(lapply(sort(unique(d0$model)), function(mm) {
@@ -372,7 +399,7 @@ if ("E0" %in% D$experiment) {
     print(MATCHM[, .(model = sub("^[^/]*/", "", model), blocks,
                      same = round(same, 2), roll = round(roll, 2),
                      diff = round(diff, 2))])
-    fwrite(MATCHM, file.path(ROOT, "output", "matched_by_model.csv"))
+    fwrite(MATCHM, file.path(OUT,"matched_by_model.csv"))
   }
 }
 
@@ -381,8 +408,8 @@ if ("E0" %in% D$experiment) {
 #
 #      Three-digit prices separate what two-digit prices bundle. The three conditions
 #      differ in which digit boundary the block crosses:
-#        flat  : x14 -> x15, no boundary at all
-#        inner : x19 -> x20, tens digit changes (rounder destination, no leading change)
+#        flat  : x14 -> x15, only the units digit changes
+#        inner : x19 -> x20, tens digit also changes (rounder destination, no leading change)
 #        lead  : x99 -> x00, hundreds (leading) digit changes (roundest destination)
 #      flat -> inner measures the roundness gradient with no leading-digit change.
 #      If lead falls below the extrapolation from flat and inner, the excess is a
@@ -431,7 +458,7 @@ if ("E0b" %in% D$experiment) {
                 round_grad, qs(1)[1], qs(1)[2]))
     cat(sprintf("  lead excess beyond extrapolation:  %+.2f [%+.2f, %+.2f]\n",
                 lead_excess, qs(3)[1], qs(3)[2]))
-    fwrite(MATCH0B, file.path(ROOT, "output", "matched_e0b.csv"))
+    fwrite(MATCH0B, file.path(OUT,"matched_e0b.csv"))
 
     # per-model breakdown
     MATCH0BM <- rbindlist(lapply(sort(unique(d0b$model)), function(mm) {
@@ -449,7 +476,7 @@ if ("E0b" %in% D$experiment) {
                        flat = round(flat, 2), inner = round(inner, 2),
                        lead = round(lead, 2), round_grad = round(round_grad, 2),
                        lead_excess = round(lead_excess, 2))])
-    fwrite(MATCH0BM, file.path(ROOT, "output", "matched_e0b_by_model.csv"))
+    fwrite(MATCH0BM, file.path(OUT,"matched_e0b_by_model.csv"))
   }
 }
 
@@ -479,7 +506,7 @@ ROUNDLEV <- NULL
     cat("\nending effect and posting frequency by roundness level (E1):\n")
     print(ROUNDLEV[, .(rho, level, endings, effect = round(effect, 2),
                        share = round(share, 2))])
-    fwrite(ROUNDLEV, file.path(ROOT, "output", "roundness_levels.csv"))
+    fwrite(ROUNDLEV, file.path(OUT,"roundness_levels.csv"))
   }
 }
 
@@ -499,7 +526,7 @@ LOO <- NULL
     }))[order(est)]
     cat(sprintf("\nleave one model out: estimate ranges %+.2f to %+.2f (full sample %+.2f)\n",
                 min(LOO$est), max(LOO$est), left_digit(ending_profile(d1l)$eff)[1]))
-    fwrite(LOO, file.path(ROOT, "output", "loo.csv"))
+    fwrite(LOO, file.path(OUT,"loo.csv"))
   }
 }
 
@@ -513,7 +540,8 @@ LOO <- NULL
 #     (ii) The roundness fit is a line through effectively two points: step 5 is the
 #          only placebo with r = 2. Dropping it leaves no slope to estimate at all, so
 #          the honest alternative is to compare step 10 against the eight r = 1
-#          placebos with no extrapolation, which OVER-states the effect and bounds it.
+#          placebos with no extrapolation, which leaves .00's extra roundness in and so
+#          understates the magnitude of a negative effect.
 #     (iii) Blocks that barely move are dropped at MIN_RANGE. Both directions are shown.
 # -----------------------------------------------------------------------------
 detrended <- function(d, deg) {
@@ -554,7 +582,7 @@ ROB <- rbindlist(lapply(intersect(names(BY), unique(D$experiment)), function(a) 
 if (nrow(ROB)) {
   cat("\nrobustness (left-digit estimate under each variant):\n")
   print(ROB[, lapply(.SD, function(x) if (is.numeric(x)) round(x, 2) else x)])
-  fwrite(ROB, file.path(ROOT, "output", "robustness.csv"))
+  fwrite(ROB, file.path(OUT,"robustness.csv"))
 }
 
 # -----------------------------------------------------------------------------
@@ -627,7 +655,7 @@ if ("E7" %in% D$experiment) {
     cat("\nper model:\n")
     print(TREND[, .(model, blocks, slope = round(slope, 2), lo = round(lo, 2),
                     hi = round(hi, 2), p_pos = round(p_pos, 3), sig)])
-    fwrite(TREND, file.path(ROOT, "output", "vision_trend.csv"))
+    fwrite(TREND, file.path(OUT,"vision_trend.csv"))
   }
 }
 
@@ -678,12 +706,12 @@ if ("E10" %in% D$experiment && "preamble_id" %in% names(D)) {
   cat("\nE10 installed-ending bumps (pp, vs the rest of the same decade):\n")
   print(BUMP[, .(preamble, ending, blocks, bump = round(bump, 2),
                  lo = round(lo, 2), hi = round(hi, 2), sig, installed)])
-  fwrite(BUMP, file.path(ROOT, "output", "installed_endings.csv"))
+  fwrite(BUMP, file.path(OUT,"installed_endings.csv"))
 }
 
-fwrite(RES,  file.path(ROOT, "output", "estimates.csv"))
-fwrite(COND, file.path(ROOT, "output", "estimates_by_condition.csv"))
-fwrite(MOD,  file.path(ROOT, "output", "estimates_by_model.csv"))
+fwrite(RES,  file.path(OUT,"estimates.csv"))
+fwrite(COND, file.path(OUT,"estimates_by_condition.csv"))
+fwrite(MOD,  file.path(OUT,"estimates_by_model.csv"))
 
 # -----------------------------------------------------------------------------
 # 5. Figures
@@ -804,7 +832,7 @@ if (!is.null(BUMP) && nrow(BUMP)) {
   b <- copy(BUMP)
   b[, ending_lab := sprintf("effect at .%02d", ending)]
   b[, pre := factor(preamble, levels = c("none", "p00", "p33", "p77"),
-                    labels = c("no preamble", '"...end in .00"',
+                    labels = c("no sentence", '"...end in .00"',
                                '"...end in .33"', '"...end in .77"'))]
   g8 <- ggplot(b[!is.na(pre)], aes(pre, bump, fill = installed)) +
     geom_hline(yintercept = 0, linewidth = .3, colour = "grey50") +
@@ -812,8 +840,9 @@ if (!is.null(BUMP) && nrow(BUMP)) {
     geom_errorbar(aes(ymin = lo, ymax = hi), width = .16, linewidth = .35) +
     facet_wrap(~ ending_lab) +
     scale_fill_manual(values = c("FALSE" = "grey70", "TRUE" = "#c2410c"),
-                      labels = c("other preambles", "this ending was installed")) +
-    labs(x = NULL, y = "effect vs the rest of its decade, pp") +
+                      labels = c("other sentences", "sentence names this ending")) +
+    labs(x = "sentence added to the prompt",
+         y = "effect relative to its ten-cent range, pp") +
     base + theme(axis.text.x = element_text(angle = 20, hjust = 1, size = 7))
   ggsave(file.path(FIG, "fig_installed.pdf"), g8, width = 6.6, height = 3.2)
 }
@@ -839,7 +868,7 @@ if (file.exists(cf)) {
     scale_x_discrete(labels = sprintf(".%02d", sort(fr$ending))) +
     scale_fill_manual(values = c("nine-ending" = "#c2410c", "round" = "#1b6ca8",
                                  "other" = "grey70")) +
-    labs(x = "price ending", y = "share of posted prices (log)",
+    labs(x = "price ending", y = "share of counted prices (log)",
          subtitle = sprintf("(a) web corpora: %s", paste(corp_cols, collapse = ", "))) +
     base + theme(axis.text.x = element_text(angle = 90, vjust = .5, size = 6))
 
@@ -911,17 +940,21 @@ if (nrow(RES)) {
     "@{}llrrrrcr@{}",
     "Left-digit effect by experiment, in percentage points of $P(\\text{buy})$.",
     "main",
-    paste("Slope is the within-block per-dollar demand response.",
+    paste("Slope is the change in purchase probability per dollar of price within a block.",
           "Uncorrected is the step-10 jump minus the mean of the nine placebo steps.",
-          "It is confounded by the roundness of $.00$ and takes the opposite sign to the",
-          "corrected estimate in four of the ten experiments. Left-digit is step 10's",
-          "residual from the placebo regression on destination roundness, and is the",
-          "estimate to read.",
+          "It is a conservative estimate: if landing on a whole dollar raises purchase",
+          "probability at least as much as landing on any other ending in zero, in",
+          "expectation it can understate a negative effect but not overstate it. It takes the opposite",
+          "sign to the corrected estimate in",
+          sum(sign(r$naive) != sign(r$left_digit), na.rm = TRUE), "of the", nrow(r),
+          "experiments. Left-digit is the roundness-corrected estimate: the step-10 jump",
+          "minus the jump predicted from the roundness of its destination, using a line",
+          "fitted to the nine placebo steps (Section~\\ref{sec:confound}).",
           "Intervals are block bootstraps over", N_BOOT, "resamples;",
           "$^{*}$ marks intervals excluding zero.",
           "$\\theta$ is the left-digit effect as a share of the per-dollar decline, the",
           "inattention parameter of the human literature (Lyft $\\approx 0.5$, used cars",
-          "$0.30$, scanner data $0.15$--$0.25$). It is a ratio and is blank where the",
+          "$0.31$, scanner data $\\approx 0.2$). It is a ratio and is blank where the",
           "denominator is within", MIN_SLOPE, "pp of zero; a value above one means the",
           "boundary drop exceeds the entire smooth within-dollar decline and should be",
           "read as all of it, not as a share.")))
@@ -936,11 +969,12 @@ if (nrow(MOD[arm == "E1"])) {
               format(blocks, big.mark = ","),
               fmt(slope), fmt(left_digit), sig, ci(lo, hi))]
   put("by_model.tex", tabular(rows,
-    "Model & Tier & Readout & Blocks & Slope & Left-digit & 95\\% CI \\\\",
+    "Model & Tier & Measure & Blocks & Slope & Left-digit & 95\\% CI \\\\",
     "lllrrrc",
     "Left-digit effect by model, core sweep (E1).", "bymodel",
-    paste("Readout is first-token log-probabilities where the provider exposes them and",
-          "the mean of", 12, "sampled binary answers otherwise.")))
+    paste("Tier is the capability tier of the model. Measure is how purchase probability",
+          "is obtained: first-token log-probabilities where the provider exposes them, and",
+          "the mean of", 12, "sampled yes-or-no answers otherwise.")))
 }
 
 # condition table (split across two pages) ------------------------------------
@@ -955,21 +989,21 @@ if (nrow(COND)) {
     r[which(dt$first)[-1] - 1L] <- paste0(r[which(dt$first)[-1] - 1L], " \\addlinespace")
     r
   }
-  hdr <- "Arm & Condition & Blocks & Slope & Left-digit & 95\\% CI \\\\"
+  hdr <- "Experiment & Condition & Blocks & Slope & Left-digit & 95\\% CI \\\\"
   aln <- "llrrrc"
   tab1_arms <- c("E0", "E0b", "E1b", "E2")
   cd1 <- cd[arm %in% tab1_arms]
   cd2 <- cd[!arm %in% tab1_arms]
   put("by_condition.tex", tabular(make_rows(cd1), hdr, aln,
-    "Left-digit effect by condition within each arm (identification and prompt experiments).",
+    "Left-digit effect by condition within each experiment (matched designs, scaled prices, and prompt phrasing).",
     "bycond",
-    paste("Each arm's conditions are estimated on their own blocks, so the rows are",
-          "independent rather than a decomposition of the arm total.")))
+    paste("Each condition is estimated on its own blocks, so the rows are independent",
+          "estimates and do not add up to the experiment total.")))
   put("by_condition2.tex", tabular(make_rows(cd2), hdr, aln,
-    "Left-digit effect by condition within each arm (domain, format, and extension experiments).",
+    "Left-digit effect by condition within each experiment (non-price domains, currencies, formats, images, reasoning, and stated conventions).",
     "bycond2",
-    paste("Continued from Table~\\ref{tab:bycond}. Each arm's conditions are estimated",
-          "on their own blocks.")))
+    paste("Continued from Table~\\ref{tab:bycond}. Each condition is estimated",
+          "on its own blocks.")))
 }
 
 # E9 arithmetic ---------------------------------------------------------------
@@ -997,8 +1031,9 @@ if (!is.null(STEPS) && nrow(STEPS)) {
           "Residual \\\\"), "rlccrrr",
     "The ten one-cent steps, core sweep (E1).", "steps",
     paste("Roundness codes the destination ending: 3 for $.00$, 2 for $.50$, 1 for any",
-          "other multiple of ten, 0 otherwise. The fit is estimated on the nine placebo",
-          "steps only; step 10's residual from it is the left-digit estimate.")))
+          "other multiple of ten, 0 otherwise. Every step ends on a multiple of ten, so",
+          "no step has roundness 0. The fit is estimated on the nine placebo steps only;",
+          "step 10's residual from it is the roundness-corrected estimate.")))
 }
 
 # vision ladder ---------------------------------------------------------------
@@ -1013,8 +1048,8 @@ if (nrow(COND[arm == "E7"])) {
               fmt(left_digit), sig, ci(lo, hi))]
   put("vision.tex", tabular(rows,
     "Condition & Rendering & Blocks & Slope & Left-digit & 95\\% CI \\\\", "llrrrc",
-    "The vision ladder (E7).", "vision",
-    paste("Every condition posts the same prices; only the height of the cents relative",
+    "Left-digit estimate at each height of the cents, prices shown as images (E7).", "vision",
+    paste("Every condition shows the same prices; only the height of the cents relative",
           "to the dollar digits changes. \\texttt{textonly} is the same task with no",
           "image at all.")))
 }
@@ -1026,17 +1061,17 @@ if (exists("ROB") && nrow(ROB)) {
                format(blocks, big.mark = ","), fmt(linear), fmt(quadratic), fmt(cubic),
                fmt(r1only), fmt(allblocks), fmt(strict))]
   put("robustness.tex", tabular(rows,
-    paste("Arm & Blocks & Linear & Quadratic & Cubic & Eight $\\rho{=}1$ &",
+    paste("Experiment & Blocks & Linear & Quadratic & Cubic & Eight $\\rho{=}1$ &",
           "All blocks & Strict \\\\"), "lrrrrrrr",
     "The left-digit estimate under each estimator choice.", "robust",
     paste("Linear is the reported specification. Quadratic and cubic replace the",
           "within-block linear detrend with a polynomial of that degree.",
           "Eight $\\rho{=}1$ drops the roundness extrapolation entirely and compares",
           "step 10 against the eight placebos landing on a plain multiple of ten. That",
-          "leaves $.00$'s extra roundness credited to the threshold, so it is the",
-          "conservative direction: it understates the effect wherever the roundness",
-          "correction matters, and the gap between the two columns is how much work the",
-          "correction is doing. All blocks sets the",
+          "leaves $.00$'s extra roundness in the comparison, so it understates the",
+          "magnitude of a negative effect wherever the roundness correction matters, and",
+          "the gap between the two columns is how much work the correction is doing.",
+          "All blocks sets the",
           "minimum within-block range to zero, Strict to five percentage points.")))
 }
 
@@ -1056,7 +1091,7 @@ if (exists("MATCH") && !is.null(MATCH) && nrow(MATCH)) {
     paste("Every block in E0 ends on $.00$, so the attractiveness of $.00$ is common to",
           "all three rows and cancels in the comparison. The estimate is a difference",
           "between two step-10 jumps and no roundness model enters it. Anchors are",
-          "matched in level across conditions and every decade carries two products.")))
+          "matched in level across conditions, and every ten-dollar range has two products.")))
 }
 if (exists("MATCHM") && !is.null(MATCHM) && nrow(MATCHM)) {
   rows <- MATCHM[, sprintf("%s & %s & %s & %s & %s \\\\",
@@ -1070,9 +1105,9 @@ if (exists("MATCHM") && !is.null(MATCHM) && nrow(MATCHM)) {
 
 # E0b: digit position ---------------------------------------------------------
 if (exists("MATCH0B") && !is.null(MATCH0B) && nrow(MATCH0B)) {
-  nm <- c(flat  = "no digit boundary ($214 \\to 215$)",
-          inner = "tens digit changes ($219 \\to 220$)",
-          lead  = "leading digit changes ($199 \\to 200$)")
+  nm <- c(flat  = "only the units digit changes ($214 \\to 215$)",
+          inner = "the tens digit also changes ($219 \\to 220$)",
+          lead  = "the leading digit also changes ($199 \\to 200$)")
   rows <- MATCH0B[, sprintf("%s & %s & %s & %s & %s \\\\", nm[digit_cond],
              format(blocks, big.mark = ","), fmt(jump),
              fifelse(digit_cond == "flat", "reference", paste0(fmt(vs_flat), sig)),
@@ -1081,21 +1116,21 @@ if (exists("MATCH0B") && !is.null(MATCH0B) && nrow(MATCH0B)) {
     paste("At the top of the block \\dots & Blocks & Step-10 jump &",
           "Against flat & 95\\% CI \\\\"), "p{5.2cm}rrrc",
     "Digit position versus roundness in three-digit prices (E0b).", "matchede0b",
-    paste("Three-digit prices separate digit position from roundness.",
-          "Flat and inner differ only in destination roundness, with no leading-digit",
-          "change in either; their gradient measures roundness alone.",
-          "Lead adds the leading-digit change. If lead falls below the gradient",
-          "extrapolated from flat and inner, the excess is a leading-digit effect.")))
+    paste("Every step lands on $.00$. From flat to inner to lead, each step changes",
+          "one more digit of the dollar figure and lands on a rounder number (215, 220,",
+          "200); only lead changes the leading digit. If lead falls below the linear",
+          "extrapolation from flat and inner, the excess is a leading-digit effect beyond",
+          "that pattern.")))
 }
 if (exists("MATCH0BM") && !is.null(MATCH0BM) && nrow(MATCH0BM)) {
   rows <- MATCH0BM[, sprintf("%s & %s & %s & %s & %s & %s & %s \\\\",
              esc(sub("^[^/]*/", "", model)), format(blocks, big.mark = ","),
              fmt(flat), fmt(inner), fmt(lead), fmt(round_grad), fmt(lead_excess))]
   put("matched_e0b_by_model.tex", tabular(rows,
-    paste("Model & Blocks & Flat & Inner & Lead & Roundness &",
+    paste("Model & Blocks & Flat & Inner & Lead & Inner $-$ flat &",
           "Lead excess \\\\"), "lrrrrrr",
     "The E0b contrasts within each model.", "matchede0bmodel",
-    paste("Roundness is inner minus flat; lead excess is lead minus the",
+    paste("Flat, inner, and lead are step-10 jumps; lead excess is lead minus the",
           "linear extrapolation from flat and inner.")))
 }
 
@@ -1106,9 +1141,9 @@ if (exists("ROUNDLEV") && !is.null(ROUNDLEV) && nrow(ROUNDLEV)) {
   put("roundness_levels.tex", tabular(rows,
     paste("$\\rho$ & Destination is \\dots & Endings & Mean effect &",
           "Corpus share, \\% \\\\"), "rlrrr",
-    "How much the endings differ by roundness, measured.", "roundlev",
+    "Ending effects and corpus shares by roundness level.", "roundlev",
     paste("Mean effect is the average ending effect at that roundness level in the core",
-          "sweep, in percentage points. Corpus share is the average posting frequency of",
+          "sweep, in percentage points. Corpus share is the average share in the corpora of",
           "endings at that level. The two orderings do not agree, because $.99$ and",
           "$.95$ are among the most frequently posted endings and are not round. That is",
           "why the measured-frequency adjustment is a genuine alternative to the ordinal",
@@ -1131,26 +1166,41 @@ if (exists("LOO") && !is.null(LOO) && nrow(LOO)) {
 if (exists("ALT") && !is.null(ALT) && nrow(ALT) &&
     exists("MATCH") && !is.null(MATCH) && nrow(MATCH) > 1L) {
   ALT <- rbind(ALT, data.table(
-    spec = "Matched design, no roundness model (E0)",
+    id = "SpecMatched",
+    spec = "Matched design (E0)",
     est = MATCH[boundary == "roll"]$vs_same, lo = MATCH[boundary == "roll"]$lo,
     hi = MATCH[boundary == "roll"]$hi, sig = MATCH[boundary == "roll"]$sig))
 }
 if (exists("ALT") && !is.null(ALT) && nrow(ALT)) {
-  rows <- ALT[, sprintf("%s & %s%s & %s \\\\", esc(spec), fmt(est), sig, ci(lo, hi))]
+  SPECROW <- c(SpecMatched    = "Matched design (E0)",
+               SpecNaive      = "Step 10 minus the mean placebo step",
+               SpecOrdinal    = "Ordinal roundness score",
+               SpecMeasured   = "Measured corpus frequency of the destination",
+               SpecMaxPlacebo = "Step 10 minus the largest placebo step")
+  SPECNEEDS <- c(SpecMatched    = "none",
+                 SpecNaive      = "$.00$ weakly most attractive",
+                 SpecOrdinal    = "linear in $\\rho$",
+                 SpecMeasured   = "linear in log frequency",
+                 SpecMaxPlacebo = "none (not a bound)")
+  at <- ALT[match(names(SPECROW), id)][!is.na(id)]
+  rows <- at[, sprintf("%s & %s & %s%s & %s \\\\", SPECROW[id], SPECNEEDS[id],
+                       fmt(est), sig, ci(lo, hi))]
   put("roundness_specs.tex", tabular(rows,
-    "Adjustment for destination roundness & Estimate & 95\\% CI \\\\", "lrc",
-    "The core estimate under three adjustments for destination roundness.", "specs",
-    paste("Row 1 is the reported estimator, which regresses the nine placebo jumps on an",
-          "ordinal roundness score and extrapolates to a whole dollar. Row 2 replaces that",
-          "score with the measured frequency of the destination ending in three public",
-          "corpora, giving nine distinct values instead of two levels.",
-          "Row 3 assumes only that rounder destinations are weakly more attractive: since",
-          "$.00$ is the roundest destination on the grid, the dollar step should jump at",
-          "least as much as the largest placebo, so the difference between them bounds the",
-          "effect without any functional form. Row 4 uses no roundness model at all: it",
-          "compares two step-10 jumps that both end on $.00$ and differ only in what",
-          "happens to the dollar figure, and it is estimated on E0's own data.",
-          "The first three rows are estimated on the core sweep.")))
+    "Specification & Roundness assumption & Estimate & 95\\% CI \\\\", "p{6.0cm}lrc",
+    "The dollar-boundary effect under five ways of handling the roundness of the price a step lands on.", "specs",
+    paste("Row 1 uses no roundness model: it compares two step-10 jumps that both end on",
+          "$.00$ and differ only in whether the leftmost digit changes, estimated on E0's",
+          "own data. Rows 2 to 5 use the core sweep. Row 2 is the uncorrected contrast. If",
+          "a whole-dollar destination is at least as attractive as every within-dollar",
+          "destination, its expectation lies at or above the true effect, so it can only",
+          "understate a negative effect. Row 3 regresses the nine placebo jumps on the",
+          "ordinal roundness score and extrapolates to a whole dollar; the fit rests on",
+          "eight placebos with $\\rho = 1$ and one with $\\rho = 2$. Row 4 replaces the score",
+          "with the measured corpus frequency of each destination, giving nine distinct",
+          "values. Row 5 subtracts the largest of the nine placebo jumps; because the",
+          "largest of nine noisy jumps tends to exceed its expectation, this contrast tends",
+          "to overstate the effect and is shown for completeness only. Rows 2 to 5 are",
+          "bootstrapped on the same", N_BOOT, "block resamples.")))
 }
 
 # the vision trend ------------------------------------------------------------
@@ -1162,31 +1212,38 @@ if (exists("TREND") && !is.null(TREND) && nrow(TREND)) {
   rows[nrow(TREND)] <- paste0("\\midrule ", rows[nrow(TREND)])
   put("vision_trend.tex", tabular(rows,
     "Model & Blocks & Trend & 95\\% CI & $\\Pr(\\gamma > 0)$ \\\\", "lrrcr",
-    "The cents-size gradient in E7, by model.", "vistrend",
-    paste("Trend is the slope of the left-digit estimate on the height of the cents",
-          "relative to the dollar digits, in percentage points per unit of height.",
-          "A positive value means the effect gets more negative as the cents shrink,",
-          "which is what a perceptual account predicts. The last column is the share of",
-          "bootstrap draws above zero. Models contributing fewer than 100 blocks are",
-          "excluded.")))
+    "Trend in the left-digit estimate as the cents shrink (E7), by model.", "vistrend",
+    paste("Trend is the slope of a line fitted to the four left-digit estimates against",
+          "the height of the cents relative to the dollar digits (1.00, 0.70, 0.50, 0.35),",
+          "in percentage points per unit of height. A positive value means the effect",
+          "gets more negative as the cents shrink, which is what a perceptual account",
+          "predicts; it does not imply that the four estimates are monotone. The last",
+          "column is the share of", max(200, N_BOOT %/% 2), "bootstrap draws above zero.",
+          "Models contributing fewer than 100 blocks are excluded.")))
 }
 
 # installed conventions -------------------------------------------------------
 if (!is.null(BUMP) && nrow(BUMP)) {
   b <- BUMP[order(ending, preamble)]
-  rows <- b[, sprintf("%s & .%02d & %s & %s%s & %s \\\\", esc(preamble), ending,
+  PRELAB <- c(none = "none", p00 = "whole numbers", p33 = "end in .33", p77 = "end in .77")
+  rows <- b[, sprintf("%s & .%02d & %s & %s%s & %s \\\\",
+             fifelse(preamble %in% names(PRELAB), PRELAB[preamble], esc(preamble)), ending,
               format(blocks, big.mark = ","), fmt(bump), sig, ci(lo, hi))]
   put("installed.tex", tabular(rows,
-    "Preamble & Ending & Blocks & Effect & 95\\% CI \\\\", "llrrc",
-    "Installing a pricing convention (E10).", "installed",
-    paste("Effect is the ending's own effect minus the mean of the other endings in its",
-          "decade, so a local price trend cannot generate it. The prediction is a positive",
-          "entry exactly where the preamble names that ending.")))
+    "Stated convention & Ending & Blocks & Effect & 95\\% CI \\\\", "llrrc",
+    "Stating a pricing convention in one sentence (E10).", "installed",
+    paste("The sentence says that retail prices in a fictional country conventionally",
+          "end in .33, end in .77, or are whole numbers. Effect is the ending's own effect",
+          "minus the mean of the other endings in its ten-cent range, so a local price",
+          "trend cannot produce it. A learned-convention account predicts a positive",
+          "entry exactly where the sentence names that ending.")))
 }
 
 # coverage --------------------------------------------------------------------
 cov <- D[, .(models = uniqueN(model), cells = .N, calls = sum(n_obs, na.rm = TRUE),
-             usd = sum(cost_usd, na.rm = TRUE)), by = experiment][order(experiment)]
+             usd = sum(cost_usd, na.rm = TRUE)), by = experiment][
+         order(match(experiment, c("E1", "E1f", "E1b", "E2", "E3", "E4", "E6", "E7",
+                                   "E8", "E9", "E10", "E0", "E0b")))]
 cov[, label := fifelse(experiment %in% names(LABEL), LABEL[experiment], experiment)]
 rows <- cov[, sprintf("%s & %s & %d & %s & %s \\\\", esc(label), esc(experiment),
              models, format(cells, big.mark = ","), format(calls, big.mark = ","))]
@@ -1196,8 +1253,9 @@ rows <- c(rows, "\\midrule", sprintf("\\multicolumn{2}{l}{Total} & & %s & %s \\\
 put("coverage.tex", tabular(rows,
   "Experiment & Code & Models & Cells & Calls \\\\", "llrrr",
   "Data collected.", "coverage",
-  paste("A cell is one condition at one price, averaging the repeated draws that a",
-        "sampled read-out needs. Calls is the number of API requests behind those cells.")))
+  paste("A cell is one prompt: one model, product, persona, price, and experimental",
+        "condition. For models without log-probabilities, a cell averages 12 sampled",
+        "answers. Calls is the number of API requests behind those cells.")))
 
 # -----------------------------------------------------------------------------
 # 6b. One figure and one table for every arm
@@ -1211,9 +1269,9 @@ PRETTY <- list(
   E0  = c(same = "dollar figure increments (12 to 13)",
           roll = "leftmost digit changes (19 to 20)",
           widen = "a digit is added (99 to 100)"),
-  E0b = c(flat  = "no boundary (214 to 215)",
-          inner = "tens digit changes (219 to 220)",
-          lead  = "leading digit changes (199 to 200)"),
+  E0b = c(flat  = "only the units digit changes (214 to 215)",
+          inner = "the tens digit also changes (219 to 220)",
+          lead  = "the leading digit also changes (199 to 200)"),
   E1b = c("10" = "prices x10", "100" = "prices x100"),
   E2  = NULL,
   E3  = c(odometer = "odometer, miles", calories = "calories per portion",
@@ -1221,7 +1279,7 @@ PRETTY <- list(
           rating = "rating out of 10"),
   E4  = c(USD = "US dollar", EUR = "euro", INR = "Indian rupee",
           JPY = "Japanese yen", CHF = "Swiss franc"),
-  E6  = c(plain = "$12.99", spaced = "$ 12.99", digitspace = "$1 2 . 9 9",
+  E6  = c(plain = "$12.99", spaced = "$ 12.99", digitspace = "$ 1 2 . 9 9",
           iso = "USD 12.99", words = "twelve dollars ninety-nine"),
   E7  = c(textonly = "text only", same = "cents 100%", r70 = "cents 70%",
           r50 = "cents 50%", r35 = "cents 35%", sup = "superscript"),
@@ -1300,9 +1358,10 @@ for (a in intersect(names(BY), unique(D$experiment))) {
       geom_vline(xintercept = 0, linetype = 2, colour = "grey55") +
       geom_errorbar(aes(xmin = lo, xmax = hi), orientation = "y",
                     width = .22, linewidth = .4) +
-      geom_point(aes(colour = sig == "*"), size = 2.2) +
-      scale_colour_manual(values = c("FALSE" = "grey50", "TRUE" = "#c2410c"),
-                          labels = c("interval covers zero", "excludes zero")) +
+      geom_point(aes(colour = fifelse(sig == "*", "interval excludes zero",
+                                      "interval covers zero")), size = 2.2) +
+      scale_colour_manual(values = c("interval covers zero" = "grey50",
+                                     "interval excludes zero" = "#c2410c")) +
       labs(x = "left-digit estimate, pp (negative = human-like)", y = NULL,
            subtitle = sprintf("%s (%s)", a, nice)) + base
     ggsave(file.path(FIG, sprintf("fig_%s_forest.pdf", a)), g,
@@ -1347,16 +1406,17 @@ for (a in intersect(names(BY), unique(D$experiment))) {
           fmt(left_digit), sig, ci(lo, hi))]
     put(sprintf("tab_%s_cond.tex", a), tabular(rows,
       if (has_pretty)
-        paste(keyname_of(a), "& & Blocks & Slope & Naive & Left-digit & 95\\% CI \\\\")
+        paste(keyname_of(a), "& & Blocks & Slope & Uncorrected & Left-digit & 95\\% CI \\\\")
       else
-        paste(keyname_of(a), "& Blocks & Slope & Naive & Left-digit & 95\\% CI \\\\"),
-      if (has_pretty) "lp{4.0cm}rrrrc" else "lrrrrc",
+        paste(keyname_of(a), "& Blocks & Slope & Uncorrected & Left-digit & 95\\% CI \\\\"),
+      if (has_pretty) "lp{3.0cm}rrrrc" else "lrrrrc",
       sprintf("%s (%s): estimates by condition.", a, nice),
       sprintf("%scond", tolower(a)),
-      paste("Each condition is estimated on its own blocks. Slope is the within-block",
-            "per-dollar demand response; naive is the uncorrected step-10 contrast;",
-            "left-digit is step 10's residual from the placebo regression on",
-            "destination roundness. $^{*}$ marks an interval excluding zero.")))
+      paste("Each condition is estimated on its own blocks. Slope is the change in",
+            "purchase probability per dollar of price within a block. Uncorrected is the",
+            "step-10 jump minus the mean of the nine placebo jumps. Left-digit is the",
+            "roundness-corrected estimate (Section~\\ref{sec:confound}). Intervals are block bootstraps over",
+            max(120, N_BOOT %/% 3), "resamples; $^{*}$ marks an interval excluding zero.")))
   }
   if (nrow(MOD[arm == a])) {
     x <- MOD[arm == a][order(left_digit)]
@@ -1411,7 +1471,7 @@ if ("E1" %in% D$experiment) {
                           guide = "none") +
       scale_x_continuous(breaks = c(0, 50, 100), labels = c(".00", ".50", "+1.00")) +
       labs(x = NULL, y = "P(buy), %",
-           subtitle = "(a) one block, as returned") + base
+           subtitle = "(a) one block: purchase probability at each price") + base
 
     pb <- ggplot(w, aes(offset, res)) +
       geom_hline(yintercept = 0, linewidth = .25, colour = "grey55") +
@@ -1437,18 +1497,26 @@ if ("E1" %in% D$experiment) {
     stw <- decade_steps(epw$eff)
     plw <- stw[step < 10]; fw <- lm(jump ~ r, plw)
     stw[, pred := as.numeric(predict(fw, stw))]
-    pd <- ggplot(stw, aes(factor(step), jump)) +
+    s10 <- stw[step == 10]
+    pd <- ggplot(stw, aes(step, jump)) +
       geom_hline(yintercept = 0, linewidth = .25, colour = "grey55") +
       geom_col(aes(fill = step == 10), width = .7) +
       geom_point(aes(y = pred), shape = 95, size = 7, colour = "#1b6ca8") +
-      geom_segment(data = stw[step == 10],
-                   aes(x = factor(step), xend = factor(step), y = pred, yend = jump),
-                   colour = "#c2410c", linewidth = .5,
-                   arrow = arrow(length = unit(0.05, "in"))) +
+      # the corrected estimate: from the predicted jump down to the observed one, drawn
+      # beside the bar so that the arrowhead is visible
+      geom_segment(data = s10, aes(x = step + .5, xend = step + .5, y = pred, yend = jump),
+                   colour = "grey15", linewidth = .45,
+                   arrow = arrow(length = unit(0.06, "in"), type = "closed")) +
+      geom_segment(data = s10, aes(x = step + .35, xend = step + .5, y = pred, yend = pred),
+                   colour = "grey15", linewidth = .3, linetype = 2) +
+      annotate("text", x = s10$step + .6, y = (s10$pred + s10$jump) / 2,
+               label = sprintf("%.2f", s10$jump - s10$pred), parse = TRUE,
+               hjust = 0, size = 2.6) +
       scale_fill_manual(values = c("FALSE" = "grey72", "TRUE" = "#c2410c"), guide = "none") +
-      scale_x_discrete(labels = c(as.character(1:9), "10*")) +
+      scale_x_continuous(breaks = 1:10, labels = c(as.character(1:9), "10*"),
+                         limits = c(.5, 12.1), expand = c(0, 0)) +
       labs(x = "one-cent step", y = "jump, pp",
-           subtitle = "(d) roundness fit (blue) and the estimate (arrow)") + base
+           subtitle = "(d) roundness prediction (blue), correction (arrow)") + base
 
     if (requireNamespace("patchwork", quietly = TRUE)) {
       gw <- patchwork::wrap_plots(pa, pb, pc, pd, ncol = 2)
@@ -1506,6 +1574,47 @@ if (!is.null(STEPS) && nrow(STEPS) == 10) {
   ggsave(file.path(FIG, "fig_roundness.pdf"), gr, width = 6.4, height = 3.8)
 }
 
+# the two comparisons that need no roundness model, drawn ---------------------
+#
+#     (a) the ten raw one-cent steps of the core sweep, with the mean placebo jump
+#         (the reference for the uncorrected contrast) and the ordinal roundness
+#         prediction for step 10; (b) E0's two step-10 jumps, both ending on .00.
+if (!is.null(STEPS) && nrow(STEPS) == 10 && exists("MATCH") && !is.null(MATCH) &&
+    all(c("same", "roll") %in% MATCH$boundary) &&
+    requireNamespace("patchwork", quietly = TRUE)) {
+  sti <- copy(STEPS)
+  pli <- sti[step < 10]
+  mpl <- mean(pli$jump)
+  p10 <- as.numeric(predict(lm(jump ~ r, pli), data.table(r = 3L)))
+  sti[, kind := fifelse(step == 10, "crosses a dollar", "stays inside the dollar")]
+  ga <- ggplot(sti, aes(factor(step), jump)) +
+    geom_hline(yintercept = 0, linewidth = .25, colour = "grey55") +
+    geom_col(aes(fill = kind), width = .65) +
+    geom_hline(yintercept = mpl, linetype = 2, colour = "#1b6ca8", linewidth = .45) +
+    annotate("point", x = 10, y = p10, shape = 21, fill = "white", colour = "grey15",
+             size = 2.6, stroke = .7) +
+    scale_fill_manual(values = c("stays inside the dollar" = "grey68",
+                                 "crosses a dollar" = "#c2410c")) +
+    scale_x_discrete(labels = c(sprintf(".%02d", seq(9, 89, 10)), ".99")) +
+    labs(x = "one-cent step, labelled by its starting ending", y = "jump in P(buy), pp",
+         subtitle = "(a) Core sweep (E1): the ten one-cent steps") +
+    base + theme(axis.text.x = element_text(size = 6.5))
+  mb <- MATCH[boundary %in% c("same", "roll")]
+  lab_same <- "leftmost digit\nunchanged\n(e.g. 12.99 to 13.00)"
+  lab_roll <- "leftmost digit\nchanges\n(e.g. 19.99 to 20.00)"
+  mb[, lab := factor(fifelse(boundary == "same", lab_same, lab_roll),
+                     levels = c(lab_same, lab_roll))]
+  gb <- ggplot(mb, aes(lab, jump, fill = boundary)) +
+    geom_hline(yintercept = 0, linewidth = .25, colour = "grey55") +
+    geom_col(width = .55) +
+    scale_fill_manual(values = c(same = "grey68", roll = "#c2410c"), guide = "none") +
+    labs(x = "step 10, both ending on .00", y = "jump in P(buy), pp",
+         subtitle = "(b) Matched design (E0)") +
+    base + theme(axis.text.x = element_text(size = 6.5))
+  gi <- patchwork::wrap_plots(ga, gb, ncol = 2, widths = c(1.75, 1))
+  ggsave(file.path(FIG, "fig_identification.pdf"), gi, width = 7.0, height = 3.0)
+}
+
 # E7: the cents ladder, one panel per model -----------------------------------
 if ("E7" %in% D$experiment) {
   dv <- prep(D[experiment == "E7"], by = "cents_cond")
@@ -1530,7 +1639,7 @@ if ("E7" %in% D$experiment) {
       facet_wrap(~ short, nrow = 1, scales = "free_y") +
       labs(x = "height of the cents relative to the dollar digits",
            y = "left-digit estimate, pp",
-           subtitle = "E7: the cents ladder, model by model") +
+           subtitle = "Prices rendered as images (E7), by model") +
       base + theme(axis.text.x = element_text(size = 6.5))
     ggsave(file.path(FIG, "fig_vision_by_model.pdf"), g, width = 7.0, height = 2.6)
     VISLADDER <<- copy(vm)
@@ -1566,11 +1675,11 @@ if (file.exists(cf)) {
   put("corpus.tex", tabular(rows,
     paste("Ending &", paste(sprintf("\\texttt{%s}", cc), collapse = " & "),
           "& Mean \\\\"), paste0("l", strrep("r", length(cc) + 1L)),
-    "The twelve most common price endings on the open web (E5).", "corpus",
-    paste("Percentage of all dollar-and-cents prices posted with each ending, counted",
-          "with the infini-gram API over three public corpora. The ordering is nearly",
-          "identical across the three (Spearman 0.968 to 0.989), which is why the",
-          "corpus choice does not matter to the argument.")))
+    "The twelve most common price endings in three public corpora (E5).", "corpus",
+    paste("Share of each ending, in percent, among the prices that carry one of the",
+          "thirty endings on our grid, counted with the infini-gram API at ten dollar",
+          "values and averaged over them. The ordering is nearly identical across the",
+          "three corpora (Spearman 0.968 to 0.989).")))
 }
 
 # multiplicity correction table ------------------------------------------------
@@ -1588,13 +1697,47 @@ if (nrow(RES)) {
                pfmt(p_bh), sig_bh)]
   MULT <<- mc
   put("multiplicity.tex", tabular(rows,
-    "Arm & 95\\% CI & $p$ & BH $p$ \\\\",
+    "Experiment & 95\\% CI & $p$ & BH $p$ \\\\",
     "lcrr",
-    "Arm-level left-digit estimates with Benjamini--Hochberg correction.", "mult",
+    "Experiment-level left-digit estimates with Benjamini--Hochberg correction.", "mult",
     paste("$p$-values are two-sided, computed from the bootstrap standard error under",
           "a normal approximation. The Benjamini--Hochberg (BH) correction is",
-          "applied across the", nrow(mc), "arm-level tests.",
+          "applied across the", nrow(mc), "experiment-level tests.",
           "An asterisk marks $p < .05$.")))
+}
+
+# E2: variation across wordings versus across models ----------------------------
+# The same E2 data give one estimate per template (pooled over models) and one per
+# model (pooled over templates). Cochran's Q and the DerSimonian-Laird between-unit
+# standard deviation summarise how far each set varies beyond sampling error.
+dl_het <- function(y, se) {
+  ok <- is.finite(y) & is.finite(se) & se > 0; y <- y[ok]; se <- se[ok]
+  w <- 1 / se^2; mu <- sum(w * y) / sum(w); Q <- sum(w * (y - mu)^2); k <- length(y)
+  tau2 <- max(0, (Q - (k - 1)) / (sum(w) - sum(w^2) / sum(w)))
+  data.table(k = k, range = diff(range(y)), Q = Q, df = k - 1L,
+             p = pchisq(Q, k - 1, lower.tail = FALSE), tau = sqrt(tau2),
+             I2 = if (Q > 0) max(0, (Q - (k - 1)) / Q) else 0)
+}
+HET <- NULL
+if (nrow(COND[arm == "E2"]) && nrow(MOD[arm == "E2"])) {
+  HET <- rbind(
+    cbind(data.table(id = "Tpl", over = "Templates (pooled over models)"),
+          dl_het(COND[arm == "E2"]$left_digit, COND[arm == "E2"]$se)),
+    cbind(data.table(id = "Mod", over = "Models (pooled over templates)"),
+          dl_het(MOD[arm == "E2"]$left_digit, MOD[arm == "E2"]$se)))
+  rows <- HET[, sprintf("%s & %d & %s & %s (%d) & %s & %s & %s \\\\", over, k, fmt(range),
+                        fmt(Q), df, fmt(p, 3), fmt(tau), fmt(I2))]
+  put("tab_E2_heterogeneity.tex", tabular(rows,
+    "Estimates across \\dots & $k$ & Range & $Q$ (df) & $p$ & $\\tau$ & $I^2$ \\\\",
+    "lrrrrrr",
+    "E2 (Prompt phrasing): variation across templates and across models.", "e2het",
+    paste("Rows summarise the left-digit estimates in Tables~\\ref{tab:e2cond} and",
+          "\\ref{tab:e2model}, with inverse-variance weights from their bootstrap standard errors. Range is the",
+          "largest minus the smallest estimate, in percentage points. $Q$ is Cochran's",
+          "heterogeneity statistic and $p$ its $\\chi^2$ test of equal estimates. $\\tau$ is",
+          "the DerSimonian--Laird estimate of the standard deviation between templates or",
+          "between models, in percentage points, and $I^2$ is the share of variation",
+          "beyond sampling error. Both rows use the same E2 data.")))
 }
 
 # -----------------------------------------------------------------------------
@@ -1620,7 +1763,21 @@ put_num("NCells",     format(nrow(D), big.mark = ","))
 put_num("NCalls",     format(sum(D$n_obs, na.rm = TRUE), big.mark = ","))
 put_num("TotalUSD",   sum(D$cost_usd, na.rm = TRUE))
 put_num("NBoot",      format(N_BOOT))
+put_num("NBootSub",   format(max(120, N_BOOT %/% 3)))   # condition, model and E10 bumps
+put_num("NBootTrend", format(max(200, N_BOOT %/% 2)))   # E7 cents-size trend
 put_num("SampleReps", "12")
+put_num("NE1Developers", format(uniqueN(sub("/.*$", "", D[experiment == "E1"]$model))))
+if (!is.null(HET) && nrow(HET)) {
+  for (i in seq_len(nrow(HET))) {
+    k <- paste0("E2Het", HET$id[i])
+    put_num(paste0(k, "N"),     format(HET$k[i]))
+    put_num(paste0(k, "Range"), HET$range[i])
+    put_num(paste0(k, "Q"),     HET$Q[i], 1)
+    put_num(paste0(k, "Df"),    format(HET$df[i]))
+    put_num(paste0(k, "P"),     HET$p[i], 3)
+    put_num(paste0(k, "Tau"),   HET$tau[i], 1)
+  }
+}
 if (exists("MULT") && nrow(MULT)) {
   put_num("NMultTests", format(nrow(MULT)))
   put_num("NMultSurviveBH", format(sum(MULT$p_bh < .05)))
@@ -1663,13 +1820,20 @@ if (nrow(COND)) {
     put_num(paste0(COND$arm[i], cn[i], "LD"), COND$left_digit[i])
     put_num(paste0(COND$arm[i], cn[i], "Lo"), COND$lo[i])
     put_num(paste0(COND$arm[i], cn[i], "Hi"), COND$hi[i])
+    put_num(paste0(COND$arm[i], cn[i], "Blocks"), format(COND$blocks[i], big.mark = ","))
   }
   te <- COND[arm == "E2"]
   if (nrow(te)) {
     put_num("E2TemplateBest",  min(te$left_digit, na.rm = TRUE))
     put_num("E2TemplateWorst", max(te$left_digit, na.rm = TRUE))
     put_num("E2NSig", format(sum(te$sig == "*" & te$left_digit < 0, na.rm = TRUE)))
+    put_num("E2NNeg", format(sum(te$left_digit < 0, na.rm = TRUE)))
     put_num("E2NTemplates", format(nrow(te)))
+  }
+  tm <- MOD[arm == "E2"]
+  if (nrow(tm)) {
+    put_num("E2ModelMin", min(tm$left_digit, na.rm = TRUE))
+    put_num("E2ModelMax", max(tm$left_digit, na.rm = TRUE))
   }
 }
 # The ten steps, so the walk-through in the text cannot drift from the table.
@@ -1816,10 +1980,9 @@ if (exists("ROUNDLEV") && !is.null(ROUNDLEV) && nrow(ROUNDLEV)) {
     put_num(paste0("RhoEff", ROUNDLEV$rho[k]), ROUNDLEV$effect[k])
 }
 if (exists("ALT") && !is.null(ALT) && nrow(ALT)) {
-  nm <- c("SpecOrdinal", "SpecMeasured", "SpecBound", "SpecMatched")
-  for (i in seq_len(min(4L, nrow(ALT)))) {
-    put_num(nm[i], ALT$est[i]); put_num(paste0(nm[i], "Lo"), ALT$lo[i])
-    put_num(paste0(nm[i], "Hi"), ALT$hi[i])
+  for (i in seq_len(nrow(ALT))) {
+    put_num(ALT$id[i], ALT$est[i]); put_num(paste0(ALT$id[i], "Lo"), ALT$lo[i])
+    put_num(paste0(ALT$id[i], "Hi"), ALT$hi[i])
   }
 }
 if (!is.null(CORP)) { put_num("CorpusRho", CORP$rho, 3); put_num("CorpusN", format(CORP$n)) }
@@ -1829,7 +1992,7 @@ if (!is.null(E9) && nrow(E9)) {
   put_num("E9Worst",    min(E9$p_correct), 3)
 }
 # Human benchmarks, for the comparison sentence. Fixed, not estimated here.
-put_num("ThetaLyft", "0.50"); put_num("ThetaCars", "0.30"); put_num("ThetaScanner", "0.15 to 0.25")
+put_num("ThetaLyft", "0.50"); put_num("ThetaCars", "0.31"); put_num("ThetaScanner", "0.2")
 
 nm <- sort(ls(NUM))
 # \csname, not \newcommand{\E1LD}: a TeX control word may contain only letters, and
@@ -1843,7 +2006,7 @@ cat("  numbers.tex (", length(nm), " macros)\n", sep = "")
 # -----------------------------------------------------------------------------
 # 8. Hand the output to the paper
 # -----------------------------------------------------------------------------
-for (dest in c("paper", "plan")) {
+for (dest in COPY_TO) {
   if (!dir.exists(file.path(ROOT, dest))) next
   pf <- file.path(ROOT, dest, "figures"); pt <- file.path(ROOT, dest, "tables")
   dir.create(pf, showWarnings = FALSE, recursive = TRUE)

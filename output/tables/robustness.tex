@@ -5,7 +5,7 @@
 \small
 \begin{tabular}{lrrrrrrr}
 \toprule
-Arm & Blocks & Linear & Quadratic & Cubic & Eight $\rho{=}1$ & All blocks & Strict \\
+Experiment & Blocks & Linear & Quadratic & Cubic & Eight $\rho{=}1$ & All blocks & Strict \\
 \midrule
 E0 & 1,736 & -1.53 & -1.57 & -1.56 & 0.18 & -0.94 & -2.06 \\
 E0b & 1,267 & 0.11 & 0.08 & 0.12 & 0.79 & 0.07 & 0.16 \\
@@ -22,5 +22,5 @@ E10 &   400 & 6.22 & 6.06 & 6.33 & 5.27 & 5.18 & 7.24 \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\parbox{\linewidth}{\footnotesize Linear is the reported specification. Quadratic and cubic replace the within-block linear detrend with a polynomial of that degree. Eight $\rho{=}1$ drops the roundness extrapolation entirely and compares step 10 against the eight placebos landing on a plain multiple of ten. That leaves $.00$'s extra roundness credited to the threshold, so it is the conservative direction: it understates the effect wherever the roundness correction matters, and the gap between the two columns is how much work the correction is doing. All blocks sets the minimum within-block range to zero, Strict to five percentage points.}
+\parbox{\linewidth}{\footnotesize Linear is the reported specification. Quadratic and cubic replace the within-block linear detrend with a polynomial of that degree. Eight $\rho{=}1$ drops the roundness extrapolation entirely and compares step 10 against the eight placebos landing on a plain multiple of ten. That leaves $.00$'s extra roundness in the comparison, so it understates the magnitude of a negative effect wherever the roundness correction matters, and the gap between the two columns is how much work the correction is doing. All blocks sets the minimum within-block range to zero, Strict to five percentage points.}
 \end{table}
